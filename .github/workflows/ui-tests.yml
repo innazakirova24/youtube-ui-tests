@@ -18,6 +18,9 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Make Maven Wrapper executable
+        run: chmod +x ./mvnw
+
       - name: Run headless UI test
         run: ./mvnw -B -Dtest=YouTubeSmokeTest test -Dheadless=true
 
