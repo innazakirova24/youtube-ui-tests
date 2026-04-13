@@ -5,6 +5,7 @@
 ## Стек
 - Java 17
 - Selenium WebDriver
+- Maven
 
 ## Сценарий 1
 
@@ -23,7 +24,7 @@
 
 Он закрывает уже запущенные процессы Chrome и запускает браузер с включённым remote debugging на порту 9222. Также bat-файл использует отдельную папку профиля браузера, чтобы Selenium мог подключиться к уже авторизованной сессии для выполнения сценария 1.
 
-После запуска Chrome и проверки, что на YouTube видна аватарка, запускается тест `YouTubeLikeTest`.
+После запуска Chrome запускается тест `YouTubeLikeTest` командой `.\mvnw.cmd -Dtest=YouTubeLikeTest test`
 
 ## Сценарий 2
 Headless-сценарий для CI:
@@ -36,7 +37,7 @@ Headless-сценарий для CI:
 
 ### Локальный запуск
 
-```bash mvn -Dtest=YouTubeSmokeTest test -Dheadless=true ```
+Запускается командой `.\mvnw.cmd -Dtest=YouTubeSmokeTest test -Dheadless=true.`
 
 ### CI
 
