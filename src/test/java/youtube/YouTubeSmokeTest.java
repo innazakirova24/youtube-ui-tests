@@ -134,8 +134,14 @@ public class YouTubeSmokeTest extends BaseUiTest {
     private void preparePageForArtifacts() {
         try {
             waitForPageLoaded();
-            Thread.sleep(2000);
-            ((JavascriptExecutor) driver).executeScript("window.scrollBy(0, 500);");
+
+            new WebDriverWait(driver, Duration.ofSeconds(10)).until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.cssSelector("ytd-watch-metadata, #title, h1")
+                    )
+            );
+
+            Thread.sleep(5000);
         } catch (Exception ignored) {
         }
     }
