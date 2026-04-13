@@ -19,7 +19,7 @@ jobs:
           cache: maven
 
       - name: Run headless UI test
-        run: mvn -B test -Dheadless=true
+        run: ./mvnw -B -Dtest=YouTubeSmokeTest test -Dheadless=true
 
       - name: Upload artifacts
         if: always()
