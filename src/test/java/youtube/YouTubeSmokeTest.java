@@ -6,7 +6,6 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.io.FileHandler;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
-import org.openqa.selenium.StaleElementReferenceException;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,13 +15,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
-
 public class YouTubeSmokeTest extends BaseUiTest {
 
     private static final String SEARCH_TEXT = "Генрих 8";
 
     @Test
-    void searchVideoAndOpenFirstResult() throws IOException {
+    void searchVideoAndOpenFirstResult() throws Exception {
         try {
             driver.get("https://www.youtube.com/?hl=ru");
 
@@ -67,6 +65,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
                     "Ожидали страницу видео, но получили: " + currentUrl
             );
         } finally {
+            preparePageForArtifacts();
             saveArtifacts();
         }
     }
@@ -130,6 +129,15 @@ public class YouTubeSmokeTest extends BaseUiTest {
             Object state = ((JavascriptExecutor) d).executeScript("return document.readyState");
             return "complete".equals(state);
         });
+    }
+
+    private void preparePageForArtifacts() {
+        try {
+            waitForPageLoaded();
+            Thread.sleep(2000);
+            ((JavascriptExecutor) driver).executeScript("window.scrollBy(0, 500);");
+        } catch (Exception ignored) {
+        }
     }
 
     private void saveArtifacts() throws IOException {
