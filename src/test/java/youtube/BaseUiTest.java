@@ -22,13 +22,16 @@ public class BaseUiTest {
             options.addArguments("--headless=new");
             options.addArguments("--window-size=1920,1080");
             options.addArguments("--mute-audio");
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
         } else {
             options.addArguments("--start-maximized");
         }
 
         options.addArguments("--lang=en");
-        options.addArguments("--disable-notifications");
+        options.addArguments("--disable-search-engine-choice-screen");
         options.addArguments("--no-first-run");
+        options.addArguments("--disable-notifications");
 
         driver = new ChromeDriver(options);
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
