@@ -18,6 +18,8 @@ import java.util.List;
 public class YouTubeSmokeTest extends BaseUiTest {
 
     private static final String SEARCH_TEXT = "Генрих 8";
+    private static final By SEARCH_RESULTS_VIDEO =
+            By.cssSelector("ytd-video-renderer a#video-title[href*='/watch?v=']");
 
     @Test
     void searchVideoAndOpenFirstResult() throws Exception {
@@ -35,10 +37,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
             waitForSearchResultsReady(wait);
 
             List<WebElement> videos = wait.until(
-                    ExpectedConditions.numberOfElementsToBeMoreThan(
-                            By.cssSelector("a#video-title[href*='/watch?v=']"),
-                            0
-                    )
+                    ExpectedConditions.numberOfElementsToBeMoreThan(SEARCH_RESULTS_VIDEO, 0)
             );
 
             WebElement firstVideo = videos.get(0);
@@ -141,10 +140,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
         wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.cssSelector("ytd-search, #contents")
         ));
-        wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(
-                By.cssSelector("a#video-title[href*='/watch?v=']"),
-                0
-        ));
+        wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(SEARCH_RESULTS_VIDEO, 0));
     }
 
     private WebElement waitForVideoPageReady(WebDriverWait wait) {
@@ -153,10 +149,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
 
         wait.until(ExpectedConditions.or(
                 ExpectedConditions.presenceOfElementLocated(By.cssSelector("ytd-watch-flexy")),
-                ExpectedConditions.presenceOfElementLocated(By.cssSelector("ytd-player"))
-        ));
-
-        wait.until(ExpectedConditions.or(
+                ExpectedConditions.presenceOfElementLocated(By.cssSelector("ytd-player")),
                 ExpectedConditions.presenceOfElementLocated(By.cssSelector("#movie_player")),
                 ExpectedConditions.presenceOfElementLocated(By.cssSelector("video"))
         ));
@@ -166,10 +159,10 @@ public class YouTubeSmokeTest extends BaseUiTest {
 
     private WebElement findVisibleNonEmptyTitle() {
         List<By> titleLocators = List.of(
-                By.cssSelector("h1.ytd-watch-metadata yt-formatted-string"),
-                By.cssSelector("ytd-watch-metadata h1"),
-                By.cssSelector("#above-the-fold h1"),
-                By.cssSelector("h1 yt-formatted-string")
+                By.xpath("//ytd-watch-metadata//h1[normalize-space(.)!='']"),
+                By.xpath("//div[@id='above-the-fold']//h1[normalize-space(.)!='']"),
+                By.xpath("//ytd-watch-metadata//*[self::h1 or self::yt-formatted-string][normalize-space(.)!='']"),
+                By.xpath("//h1[normalize-space(.)!='']")
         );
 
         for (By locator : titleLocators) {
@@ -200,7 +193,14 @@ public class YouTubeSmokeTest extends BaseUiTest {
                         titleElement
                 );
 
-                wait.until(ExpectedConditions.visibilityOf(titleElement));
+                wait.until(d -> {
+                    Object result = ((JavascriptExecutor) d).executeScript(
+                            "const r = arguments[0].getBoundingClientRect();" +
+                                    "return r.top >= 0 && r.bottom <= window.innerHeight && arguments[0].offsetParent !== null;",
+                            titleElement
+                    );
+                    return Boolean.TRUE.equals(result);
+                });
             } else if (driver.getCurrentUrl().contains("results")) {
                 waitForSearchResultsReady(wait);
             } else {
