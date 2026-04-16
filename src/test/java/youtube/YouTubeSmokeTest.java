@@ -32,7 +32,6 @@ public class YouTubeSmokeTest extends BaseUiTest {
 
             searchForVideo(wait, SEARCH_TEXT);
 
-            wait.until(ExpectedConditions.urlContains("results"));
             waitForSearchResultsReady(wait);
 
             List<WebElement> videos = wait.until(
@@ -54,12 +53,16 @@ public class YouTubeSmokeTest extends BaseUiTest {
                 ((JavascriptExecutor) driver).executeScript("arguments[0].click();", firstVideo);
             }
 
-            waitForVideoPageReady(wait);
+            WebElement titleElement = waitForVideoPageReady(wait);
 
-            String currentUrl = driver.getCurrentUrl();
             Assertions.assertTrue(
-                    currentUrl.contains("watch"),
-                    "Ожидали страницу видео, но получили: " + currentUrl
+                    driver.getCurrentUrl().contains("watch"),
+                    "Ожидали страницу видео, но получили: " + driver.getCurrentUrl()
+            );
+
+            Assertions.assertFalse(
+                    titleElement.getText().trim().isEmpty(),
+                    "Название видео не должно быть пустым"
             );
         } finally {
             preparePageForArtifacts();
@@ -122,7 +125,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
     }
 
     private void waitForDocumentReady() {
-        new WebDriverWait(driver, Duration.ofSeconds(15)).until(d -> {
+        new WebDriverWait(driver, Duration.ofSeconds(20)).until(d -> {
             Object state = ((JavascriptExecutor) d).executeScript("return document.readyState");
             return "complete".equals(state) || "interactive".equals(state);
         });
@@ -130,10 +133,11 @@ public class YouTubeSmokeTest extends BaseUiTest {
 
     private void waitForHomePageReady(WebDriverWait wait) {
         wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("body")));
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.name("search_query")));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("search_query")));
     }
 
     private void waitForSearchResultsReady(WebDriverWait wait) {
+        wait.until(ExpectedConditions.urlContains("results"));
         wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.cssSelector("ytd-search, #contents")
         ));
@@ -143,7 +147,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
         ));
     }
 
-    private void waitForVideoPageReady(WebDriverWait wait) {
+    private WebElement waitForVideoPageReady(WebDriverWait wait) {
         wait.until(ExpectedConditions.urlContains("watch"));
         waitForDocumentReady();
 
@@ -157,25 +161,46 @@ public class YouTubeSmokeTest extends BaseUiTest {
                 ExpectedConditions.presenceOfElementLocated(By.cssSelector("video"))
         ));
 
-        try {
-            new WebDriverWait(driver, Duration.ofSeconds(5)).until(
-                    ExpectedConditions.presenceOfElementLocated(
-                            By.cssSelector("ytd-watch-metadata h1, #above-the-fold h1")
-                    )
-            );
-        } catch (TimeoutException ignored) {
-            // Для smoke test наличие заголовка не критично
+        return wait.until(driver -> findVisibleNonEmptyTitle());
+    }
+
+    private WebElement findVisibleNonEmptyTitle() {
+        List<By> titleLocators = List.of(
+                By.cssSelector("h1.ytd-watch-metadata yt-formatted-string"),
+                By.cssSelector("ytd-watch-metadata h1"),
+                By.cssSelector("#above-the-fold h1"),
+                By.cssSelector("h1 yt-formatted-string")
+        );
+
+        for (By locator : titleLocators) {
+            List<WebElement> elements = driver.findElements(locator);
+            for (WebElement element : elements) {
+                try {
+                    if (element.isDisplayed() && !element.getText().trim().isEmpty()) {
+                        return element;
+                    }
+                } catch (StaleElementReferenceException ignored) {
+                }
+            }
         }
+        return null;
     }
 
     private void preparePageForArtifacts() {
         try {
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
 
             waitForDocumentReady();
 
             if (driver.getCurrentUrl().contains("watch")) {
-                waitForVideoPageReady(wait);
+                WebElement titleElement = waitForVideoPageReady(wait);
+
+                ((JavascriptExecutor) driver).executeScript(
+                        "arguments[0].scrollIntoView({block: 'center'});",
+                        titleElement
+                );
+
+                wait.until(ExpectedConditions.visibilityOf(titleElement));
             } else if (driver.getCurrentUrl().contains("results")) {
                 waitForSearchResultsReady(wait);
             } else {
