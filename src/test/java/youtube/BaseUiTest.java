@@ -2,6 +2,7 @@ package youtube;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -28,6 +29,8 @@ public class BaseUiTest {
             options.addArguments("--start-maximized");
         }
 
+        options.setPageLoadStrategy(PageLoadStrategy.EAGER);
+
         options.addArguments("--lang=en");
         options.addArguments("--disable-search-engine-choice-screen");
         options.addArguments("--no-first-run");
@@ -35,7 +38,6 @@ public class BaseUiTest {
 
         driver = new ChromeDriver(options);
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(2));
     }
 
     @AfterEach

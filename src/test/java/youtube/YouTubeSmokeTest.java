@@ -27,15 +27,17 @@ public class YouTubeSmokeTest extends BaseUiTest {
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
 
             acceptCookiesIfPresent();
-            waitForPageLoaded();
+            waitForDocumentReady();
+            waitForHomePageReady(wait);
 
             searchForVideo(wait, SEARCH_TEXT);
 
             wait.until(ExpectedConditions.urlContains("results"));
+            waitForSearchResultsReady(wait);
 
             List<WebElement> videos = wait.until(
                     ExpectedConditions.numberOfElementsToBeMoreThan(
-                            By.cssSelector("a#video-title[href*='/watch']"),
+                            By.cssSelector("a#video-title[href*='/watch?v=']"),
                             0
                     )
             );
@@ -52,12 +54,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
                 ((JavascriptExecutor) driver).executeScript("arguments[0].click();", firstVideo);
             }
 
-            wait.until(ExpectedConditions.urlContains("watch"));
-            waitForPageLoaded();
-
-            wait.until(ExpectedConditions.presenceOfElementLocated(
-                    By.cssSelector("ytd-watch-flexy, #movie_player, video")
-            ));
+            waitForVideoPageReady(wait);
 
             String currentUrl = driver.getCurrentUrl();
             Assertions.assertTrue(
@@ -124,24 +121,74 @@ public class YouTubeSmokeTest extends BaseUiTest {
         }
     }
 
-    private void waitForPageLoaded() {
+    private void waitForDocumentReady() {
         new WebDriverWait(driver, Duration.ofSeconds(15)).until(d -> {
             Object state = ((JavascriptExecutor) d).executeScript("return document.readyState");
-            return "complete".equals(state);
+            return "complete".equals(state) || "interactive".equals(state);
+        });
+    }
+
+    private void waitForHomePageReady(WebDriverWait wait) {
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("body")));
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.name("search_query")));
+    }
+
+    private void waitForSearchResultsReady(WebDriverWait wait) {
+        wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.cssSelector("ytd-search, #contents")
+        ));
+        wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(
+                By.cssSelector("a#video-title[href*='/watch?v=']"),
+                0
+        ));
+    }
+
+    private void waitForVideoPageReady(WebDriverWait wait) {
+        wait.until(ExpectedConditions.urlContains("watch"));
+        waitForDocumentReady();
+
+        wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.cssSelector("ytd-watch-flexy")
+        ));
+
+        wait.until(ExpectedConditions.presenceOfElementLocated(
+                By.cssSelector("#movie_player, video")
+        ));
+
+        wait.until(driver -> {
+            for (By locator : List.of(
+                    By.cssSelector("ytd-watch-metadata h1"),
+                    By.cssSelector("h1.ytd-watch-metadata"),
+                    By.cssSelector("#above-the-fold h1"),
+                    By.cssSelector("ytd-watch-metadata yt-formatted-string")
+            )) {
+                List<WebElement> elements = driver.findElements(locator);
+                for (WebElement element : elements) {
+                    try {
+                        if (element.isDisplayed() && !element.getText().isBlank()) {
+                            return true;
+                        }
+                    } catch (StaleElementReferenceException ignored) {
+                    }
+                }
+            }
+            return false;
         });
     }
 
     private void preparePageForArtifacts() {
         try {
-            waitForPageLoaded();
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
-            new WebDriverWait(driver, Duration.ofSeconds(10)).until(
-                    ExpectedConditions.presenceOfElementLocated(
-                            By.cssSelector("ytd-watch-metadata, #title, h1")
-                    )
-            );
+            waitForDocumentReady();
 
-            Thread.sleep(5000);
+            if (driver.getCurrentUrl().contains("watch")) {
+                waitForVideoPageReady(wait);
+            } else if (driver.getCurrentUrl().contains("results")) {
+                waitForSearchResultsReady(wait);
+            } else {
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("body")));
+            }
         } catch (Exception ignored) {
         }
     }
