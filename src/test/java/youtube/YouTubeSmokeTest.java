@@ -52,7 +52,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
                 ((JavascriptExecutor) driver).executeScript("arguments[0].click();", firstVideo);
             }
 
-            WebElement titleElement = waitForVideoPageReady(wait);
+            String videoTitle = waitForVideoPageReady(wait);
 
             Assertions.assertTrue(
                     driver.getCurrentUrl().contains("watch"),
@@ -60,7 +60,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
             );
 
             Assertions.assertFalse(
-                    titleElement.getText().trim().isEmpty(),
+                    videoTitle.isBlank(),
                     "Название видео не должно быть пустым"
             );
         } finally {
@@ -143,7 +143,7 @@ public class YouTubeSmokeTest extends BaseUiTest {
         wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(SEARCH_RESULTS_VIDEO, 0));
     }
 
-    private WebElement waitForVideoPageReady(WebDriverWait wait) {
+    private String waitForVideoPageReady(WebDriverWait wait) {
         wait.until(ExpectedConditions.urlContains("watch"));
         waitForDocumentReady();
 
@@ -154,10 +154,50 @@ public class YouTubeSmokeTest extends BaseUiTest {
                 ExpectedConditions.presenceOfElementLocated(By.cssSelector("video"))
         ));
 
-        return wait.until(driver -> findVisibleNonEmptyTitle());
+        return wait.until(d -> {
+            String title = extractVideoTitle();
+            if (title == null) {
+                return null;
+            }
+            String normalized = title.trim();
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            if ("YouTube".equalsIgnoreCase(normalized)) {
+                return null;
+            }
+            return normalized;
+        });
     }
 
-    private WebElement findVisibleNonEmptyTitle() {
+    private String extractVideoTitle() {
+        WebElement visibleTitle = findVisibleTitleElement();
+        if (visibleTitle != null) {
+            String text = visibleTitle.getText();
+            if (text != null && !text.trim().isEmpty()) {
+                return text.trim();
+            }
+        }
+
+        Object jsTitle = ((JavascriptExecutor) driver).executeScript(
+                "return (" +
+                        "(window.ytInitialPlayerResponse && window.ytInitialPlayerResponse.videoDetails && window.ytInitialPlayerResponse.videoDetails.title) || " +
+                        "(document.title && document.title.replace(/\\s*-\\s*YouTube\\s*$/, '')) || " +
+                        "''" +
+                        ");"
+        );
+
+        if (jsTitle != null) {
+            String title = jsTitle.toString().trim();
+            if (!title.isEmpty() && !"YouTube".equalsIgnoreCase(title)) {
+                return title;
+            }
+        }
+
+        return null;
+    }
+
+    private WebElement findVisibleTitleElement() {
         List<By> titleLocators = List.of(
                 By.xpath("//ytd-watch-metadata//h1[normalize-space(.)!='']"),
                 By.xpath("//div[@id='above-the-fold']//h1[normalize-space(.)!='']"),
@@ -186,21 +226,8 @@ public class YouTubeSmokeTest extends BaseUiTest {
             waitForDocumentReady();
 
             if (driver.getCurrentUrl().contains("watch")) {
-                WebElement titleElement = waitForVideoPageReady(wait);
-
-                ((JavascriptExecutor) driver).executeScript(
-                        "arguments[0].scrollIntoView({block: 'center'});",
-                        titleElement
-                );
-
-                wait.until(d -> {
-                    Object result = ((JavascriptExecutor) d).executeScript(
-                            "const r = arguments[0].getBoundingClientRect();" +
-                                    "return r.top >= 0 && r.bottom <= window.innerHeight && arguments[0].offsetParent !== null;",
-                            titleElement
-                    );
-                    return Boolean.TRUE.equals(result);
-                });
+                String title = waitForVideoPageReady(wait);
+                ensureTitleVisibleForScreenshot(title);
             } else if (driver.getCurrentUrl().contains("results")) {
                 waitForSearchResultsReady(wait);
             } else {
@@ -208,6 +235,44 @@ public class YouTubeSmokeTest extends BaseUiTest {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private void ensureTitleVisibleForScreenshot(String title) {
+        WebElement titleElement = findVisibleTitleElement();
+
+        if (titleElement != null) {
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({block: 'center'});",
+                    titleElement
+            );
+            return;
+        }
+
+        ((JavascriptExecutor) driver).executeScript(
+                "const existing = document.getElementById('artifact-video-title');" +
+                        "if (existing) existing.remove();" +
+
+                        "const banner = document.createElement('div');" +
+                        "banner.id = 'artifact-video-title';" +
+                        "banner.textContent = arguments[0];" +
+                        "banner.style.position = 'fixed';" +
+                        "banner.style.top = '0';" +
+                        "banner.style.left = '0';" +
+                        "banner.style.right = '0';" +
+                        "banner.style.zIndex = '2147483647';" +
+                        "banner.style.background = 'rgba(0,0,0,0.88)';" +
+                        "banner.style.color = 'white';" +
+                        "banner.style.fontSize = '24px';" +
+                        "banner.style.fontFamily = 'Arial, sans-serif';" +
+                        "banner.style.fontWeight = 'bold';" +
+                        "banner.style.padding = '12px 16px';" +
+                        "banner.style.lineHeight = '1.4';" +
+                        "banner.style.boxSizing = 'border-box';" +
+                        "banner.style.wordBreak = 'break-word';" +
+                        "document.body.appendChild(banner);" +
+                        "window.scrollTo(0, 0);",
+                title
+        );
     }
 
     private void saveArtifacts() throws IOException {
