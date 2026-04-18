@@ -5,7 +5,7 @@ on:
     branches: [ playwright-migration, main ]
   pull_request:
     branches: [ playwright-migration, main ]
-  workflow_dispatch:     # можно запускать вручную
+  workflow_dispatch:
 
 jobs:
   playwright-test:
@@ -35,9 +35,12 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Install Playwright Chromium + dependencies
-        run: ./mvnw exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps chromium"
+        run: |
+          ./mvnw exec:java -e \
+            -Dexec.mainClass="com.microsoft.playwright.CLI" \
+            -Dexec.args="install --with-deps chromium"
 
-      - name: Run YouTube Playwright test in headless mode
+      - name: Run YouTube Playwright test (headless)
         run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
 
       - name: Upload screenshots and artifacts
