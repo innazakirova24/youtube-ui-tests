@@ -5,7 +5,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.nio.file.Paths;
-import java.util.List;
 
 public abstract class BaseUiTest {
 
@@ -20,54 +19,37 @@ public abstract class BaseUiTest {
 
         boolean headless = Boolean.parseBoolean(System.getProperty("headless", "false"));
 
-        // Настройки запуска браузера
-        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
+        browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
                 .setChannel("chrome")
                 .setHeadless(headless)
-                .setSlowMo(headless ? 0 : 80);
+                .setSlowMo(headless ? 0 : 80));
 
-        // Дополнительные аргументы для headless режима (важно для CI)
-        if (headless) {
-            launchOptions.setArgs(List.of(
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-gpu",
-                    "--window-size=1920,1080"
-            ));
-        }
-
-        browser = playwright.chromium().launch(launchOptions);
-
-        // Настройки контекста браузера
         context = browser.newContext(new Browser.NewContextOptions()
-                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
                 .setViewportSize(1920, 1080)
-                .setLocale("ru-RU")
-        );
-
-        // Stealth-патчи против анти-бота YouTube
-        context.addInitScript("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['ru-RU', 'ru']});
-            
-            delete navigator.__proto__.webdriver;
-            
-            window.chrome = { 
-                runtime: {}, 
-                loadTimes: () => {}, 
-                csi: () => {}, 
-                app: {} 
-            };
-            
-            Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
-            Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
-            """);
+                .setLocale("ru-RU"));
 
         page = context.newPage();
 
-        System.out.println("🚀 Браузер запущен (Playwright + Chrome, headless=" + headless + ")");
+        page.navigate("https://www.youtube.com");
+
+        // Даём время на загрузку всех cookies
+        page.waitForTimeout(6000);
+
+        // Сохраняем состояние
+        context.storageState(new BrowserContext.StorageStateOptions()
+                .setPath(Paths.get("storage-state.json")));
+
+        System.out.println("✅ storage-state.json создан/обновлён");
+
+        // Теперь используем это состояние для теста
+        context = browser.newContext(new Browser.NewContextOptions()
+                .setStorageStatePath(Paths.get("storage-state.json"))
+                .setViewportSize(1920, 1080)
+                .setLocale("ru-RU"));
+
+        page = context.newPage();
+
+        System.out.println("Тест запущен с загруженным storage-state.json (headless = " + headless + ")");
     }
 
     @AfterEach
