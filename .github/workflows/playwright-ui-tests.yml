@@ -34,22 +34,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Download dependencies (important!)
-        run: ./mvnw dependency:resolve test-compile -q
+      - name: Resolve dependencies
+        run: ./mvnw dependency:go-offline test-compile -q
 
-      - name: Install Playwright Chromium + system dependencies
-        run: |
-          ./mvnw exec:java -e \
-            -Dexec.mainClass="com.microsoft.playwright.CLI" \
-            -Dexec.args="install --with-deps chromium"
+      - name: Install Playwright browsers
+        run: ./mvnw com.microsoft.playwright:playwright-maven-plugin:1.49.0:install -Dplaywright.platform=linux
 
       - name: Run YouTube Playwright test (headless)
         run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
 
-      - name: Upload screenshots and artifacts
+      - name: Upload artifacts (screenshots)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-artifacts
+          name: playwright-artifacts
           path: target/artifacts/
           retention-days: 14
