@@ -2,9 +2,9 @@ name: UI Tests (Playwright - Headless)
 
 on:
   push:
-    branches: [ playwright-migration, main ]
+    branches: [ playwright-migration ]
   pull_request:
-    branches: [ playwright-migration, main ]
+    branches: [ playwright-migration ]
   workflow_dispatch:
 
 jobs:
@@ -34,25 +34,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Resolve Maven dependencies
+      - name: Resolve dependencies
         run: ./mvnw dependency:go-offline test-compile -q
 
-      - name: Install Node.js (for playwright CLI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
 
-      - name: Install Playwright browsers + dependencies
-        run: |
-          npx playwright install chromium --with-deps
-
-      - name: Run YouTube Playwright test (headless)
+      - name: Run YouTube Playwright test
         run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
 
-      - name: Upload screenshots and artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-artifacts
           path: target/artifacts/
-          retention-days: 14
+          retention-days: 7
