@@ -10,7 +10,7 @@ on:
 jobs:
   playwright-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Checkout code
@@ -34,7 +34,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Install Playwright Chromium + dependencies
+      - name: Download dependencies (important!)
+        run: ./mvnw dependency:resolve test-compile -q
+
+      - name: Install Playwright Chromium + system dependencies
         run: |
           ./mvnw exec:java -e \
             -Dexec.mainClass="com.microsoft.playwright.CLI" \
