@@ -2,14 +2,15 @@ name: UI Tests (Playwright - Headless)
 
 on:
   push:
-    branches: [ main, master, playwright-migration ]
+    branches: [ playwright-migration, main ]
   pull_request:
-    branches: [ main, master, playwright-migration ]
-  workflow_dispatch:   # можно запускать вручную
+    branches: [ playwright-migration, main ]
+  workflow_dispatch:     # можно запускать вручную
 
 jobs:
-  youtube-playwright-test:
+  playwright-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -25,7 +26,7 @@ jobs:
       - name: Make Maven Wrapper executable
         run: chmod +x ./mvnw
 
-      - name: Cache Maven packages
+      - name: Cache Maven dependencies
         uses: actions/cache@v4
         with:
           path: ~/.m2
@@ -33,16 +34,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Install Playwright dependencies
+      - name: Install Playwright Chromium + dependencies
         run: ./mvnw exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps chromium"
 
-      - name: Run Playwright tests in headless mode
+      - name: Run YouTube Playwright test in headless mode
         run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
 
-      - name: Upload screenshots (always)
+      - name: Upload screenshots and artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
+          name: playwright-test-artifacts
           path: target/artifacts/
-          retention-days: 7
+          retention-days: 14
