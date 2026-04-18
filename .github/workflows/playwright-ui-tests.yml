@@ -10,7 +10,7 @@ on:
 jobs:
   playwright-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -34,16 +34,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Resolve dependencies
+      - name: Resolve Maven dependencies
         run: ./mvnw dependency:go-offline test-compile -q
 
-      - name: Install Playwright browsers
-        run: ./mvnw com.microsoft.playwright:playwright-maven-plugin:1.49.0:install -Dplaywright.platform=linux
+      - name: Install Node.js (for playwright CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright browsers + dependencies
+        run: |
+          npx playwright install chromium --with-deps
 
       - name: Run YouTube Playwright test (headless)
         run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
 
-      - name: Upload artifacts (screenshots)
+      - name: Upload screenshots and artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
