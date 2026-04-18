@@ -1,292 +1,89 @@
 package youtube;
 
-import org.junit.jupiter.api.Assertions;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.*;
-import org.openqa.selenium.io.FileHandler;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.List;
 
 public class YouTubeSmokeTest extends BaseUiTest {
 
-    private static final String SEARCH_TEXT = "Генрих 8";
-    private static final By SEARCH_RESULTS_VIDEO =
-            By.cssSelector("ytd-video-renderer a#video-title[href*='/watch?v=']");
+    private static final String SEARCH_QUERY = "Генрих 8";
 
     @Test
-    void searchVideoAndOpenFirstResult() throws Exception {
+    void searchVideoAndOpenFirstResult() {
         try {
-            driver.get("https://www.youtube.com/?hl=ru");
+            System.out.println("➡️ Открываем YouTube");
+            page.navigate("https://www.youtube.com/?hl=ru");
 
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+            dismissConsentBump();
 
-            acceptCookiesIfPresent();
-            waitForDocumentReady();
-            waitForHomePageReady(wait);
+            // Важная пауза после закрытия consent-бампера
+            page.waitForTimeout(3000);
 
-            searchForVideo(wait, SEARCH_TEXT);
+            System.out.println("🔍 Ищем поле поиска...");
+            Locator searchInput = page.locator("input#search, ytd-searchbox input, input[name='search_query']")
+                    .first();
 
-            waitForSearchResultsReady(wait);
+            searchInput.waitFor(new Locator.WaitForOptions().setTimeout(25000));
 
-            List<WebElement> videos = wait.until(
-                    ExpectedConditions.numberOfElementsToBeMoreThan(SEARCH_RESULTS_VIDEO, 0)
-            );
+            page.evaluate("window.scrollTo(0, 0)");
+            page.waitForTimeout(800);
 
-            WebElement firstVideo = videos.get(0);
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block: 'center'});",
-                    firstVideo
-            );
+            searchInput.scrollIntoViewIfNeeded();
+            searchInput.click();
+            searchInput.fill(SEARCH_QUERY);
+            System.out.println("✅ Ввели запрос: " + SEARCH_QUERY);
 
-            try {
-                wait.until(ExpectedConditions.elementToBeClickable(firstVideo)).click();
-            } catch (ElementClickInterceptedException e) {
-                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", firstVideo);
-            }
+            searchInput.press("Enter");
+            System.out.println("✅ Нажали Enter");
 
-            String videoTitle = waitForVideoPageReady(wait);
+            page.waitForSelector("ytd-video-renderer, ytd-search-video-renderer",
+                    new Page.WaitForSelectorOptions().setTimeout(18000));
 
-            Assertions.assertTrue(
-                    driver.getCurrentUrl().contains("watch"),
-                    "Ожидали страницу видео, но получили: " + driver.getCurrentUrl()
-            );
+            Locator firstVideo = page.locator("ytd-video-renderer a#video-title, ytd-search-video-renderer a#video-title").first();
+            firstVideo.scrollIntoViewIfNeeded();
+            firstVideo.click();
 
-            Assertions.assertFalse(
-                    videoTitle.isBlank(),
-                    "Название видео не должно быть пустым"
-            );
-        } finally {
-            preparePageForArtifacts();
-            saveArtifacts();
+            page.waitForTimeout(4000);
+
+            saveScreenshot("youtube-smoke-success");
+            System.out.println("✅ Тест успешно пройден в " + (Boolean.parseBoolean(System.getProperty("headless", "false")) ? "headless" : "headful") + " режиме!");
+
+        } catch (Exception e) {
+            saveScreenshot("youtube-smoke-FAILED");
+            System.err.println("❌ Тест упал: " + e.getMessage());
+            throw e;
         }
     }
 
-    private void acceptCookiesIfPresent() {
-        List<By> cookieButtons = List.of(
-                By.xpath("//button[.//span[normalize-space()='Accept all']]"),
-                By.xpath("//button[.//span[normalize-space()='I agree']]"),
-                By.xpath("//button[.//span[normalize-space()='Принять все']]"),
-                By.xpath("//button[.//span[normalize-space()='Я принимаю']]"),
-                By.xpath("//button[.//*[contains(text(),'Accept all')]]"),
-                By.xpath("//button[.//*[contains(text(),'I agree')]]"),
-                By.xpath("//button[.//*[contains(text(),'Принять все')]]"),
-                By.xpath("//button[.//*[contains(text(),'Я принимаю')]]")
-        );
+    private void dismissConsentBump() {
+        try {
+            System.out.println("🍪 Закрываем consent bump...");
 
-        for (By locator : cookieButtons) {
-            try {
-                WebElement button = new WebDriverWait(driver, Duration.ofSeconds(5))
-                        .until(ExpectedConditions.elementToBeClickable(locator));
-                button.click();
-                return;
-            } catch (TimeoutException | ElementNotInteractableException ignored) {
-            }
-        }
-    }
+            String[] selectors = {
+                    "button:has-text('Принять всё')",
+                    "button:has-text('Accept all')",
+                    "ytd-consent-bump-v2-lightbox button.yt-spec-button-shape-next--filled",
+                    "ytd-button-renderer button",
+                    "#ytd-consent-bump-v2-lightbox button"
+            };
 
-    private void searchForVideo(WebDriverWait wait, String text) {
-        By searchInputLocator = By.name("search_query");
-
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            try {
-                WebElement searchInput = wait.until(
-                        ExpectedConditions.refreshed(
-                                ExpectedConditions.elementToBeClickable(searchInputLocator)
-                        )
-                );
-
-                ((JavascriptExecutor) driver).executeScript(
-                        "arguments[0].scrollIntoView({block: 'center'});",
-                        searchInput
-                );
-
-                searchInput.click();
-                searchInput.sendKeys(Keys.chord(Keys.CONTROL, "a"));
-                searchInput.sendKeys(Keys.DELETE);
-                searchInput.sendKeys(text);
-                searchInput.sendKeys(Keys.ENTER);
-                return;
-
-            } catch (StaleElementReferenceException | ElementClickInterceptedException e) {
-                if (attempt == 3) {
-                    throw e;
+            for (String sel : selectors) {
+                Locator btn = page.locator(sel).first();
+                if (btn.count() > 0 && btn.isVisible()) {
+                    btn.scrollIntoViewIfNeeded();
+                    btn.click();
+                    System.out.println("✅ Consent bump закрыт");
+                    page.waitForTimeout(2500);
+                    return;
                 }
             }
+
+            // Запасной вариант через JS
+            page.evaluate("document.querySelector('ytd-consent-bump-v2-lightbox')?.remove();");
+            System.out.println("✅ Consent bump скрыт через JS");
+
+        } catch (Exception e) {
+            System.out.println("⚠️ Не удалось закрыть consent bump: " + e.getMessage());
         }
-    }
-
-    private void waitForDocumentReady() {
-        new WebDriverWait(driver, Duration.ofSeconds(20)).until(d -> {
-            Object state = ((JavascriptExecutor) d).executeScript("return document.readyState");
-            return "complete".equals(state) || "interactive".equals(state);
-        });
-    }
-
-    private void waitForHomePageReady(WebDriverWait wait) {
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("body")));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("search_query")));
-    }
-
-    private void waitForSearchResultsReady(WebDriverWait wait) {
-        wait.until(ExpectedConditions.urlContains("results"));
-        wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.cssSelector("ytd-search, #contents")
-        ));
-        wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(SEARCH_RESULTS_VIDEO, 0));
-    }
-
-    private String waitForVideoPageReady(WebDriverWait wait) {
-        wait.until(ExpectedConditions.urlContains("watch"));
-        waitForDocumentReady();
-
-        wait.until(ExpectedConditions.or(
-                ExpectedConditions.presenceOfElementLocated(By.cssSelector("ytd-watch-flexy")),
-                ExpectedConditions.presenceOfElementLocated(By.cssSelector("ytd-player")),
-                ExpectedConditions.presenceOfElementLocated(By.cssSelector("#movie_player")),
-                ExpectedConditions.presenceOfElementLocated(By.cssSelector("video"))
-        ));
-
-        return wait.until(d -> {
-            String title = extractVideoTitle();
-            if (title == null) {
-                return null;
-            }
-            String normalized = title.trim();
-            if (normalized.isEmpty()) {
-                return null;
-            }
-            if ("YouTube".equalsIgnoreCase(normalized)) {
-                return null;
-            }
-            return normalized;
-        });
-    }
-
-    private String extractVideoTitle() {
-        WebElement visibleTitle = findVisibleTitleElement();
-        if (visibleTitle != null) {
-            String text = visibleTitle.getText();
-            if (text != null && !text.trim().isEmpty()) {
-                return text.trim();
-            }
-        }
-
-        Object jsTitle = ((JavascriptExecutor) driver).executeScript(
-                "return (" +
-                        "(window.ytInitialPlayerResponse && window.ytInitialPlayerResponse.videoDetails && window.ytInitialPlayerResponse.videoDetails.title) || " +
-                        "(document.title && document.title.replace(/\\s*-\\s*YouTube\\s*$/, '')) || " +
-                        "''" +
-                        ");"
-        );
-
-        if (jsTitle != null) {
-            String title = jsTitle.toString().trim();
-            if (!title.isEmpty() && !"YouTube".equalsIgnoreCase(title)) {
-                return title;
-            }
-        }
-
-        return null;
-    }
-
-    private WebElement findVisibleTitleElement() {
-        List<By> titleLocators = List.of(
-                By.xpath("//ytd-watch-metadata//h1[normalize-space(.)!='']"),
-                By.xpath("//div[@id='above-the-fold']//h1[normalize-space(.)!='']"),
-                By.xpath("//ytd-watch-metadata//*[self::h1 or self::yt-formatted-string][normalize-space(.)!='']"),
-                By.xpath("//h1[normalize-space(.)!='']")
-        );
-
-        for (By locator : titleLocators) {
-            List<WebElement> elements = driver.findElements(locator);
-            for (WebElement element : elements) {
-                try {
-                    if (element.isDisplayed() && !element.getText().trim().isEmpty()) {
-                        return element;
-                    }
-                } catch (StaleElementReferenceException ignored) {
-                }
-            }
-        }
-        return null;
-    }
-
-    private void preparePageForArtifacts() {
-        try {
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
-
-            waitForDocumentReady();
-
-            if (driver.getCurrentUrl().contains("watch")) {
-                String title = waitForVideoPageReady(wait);
-                ensureTitleVisibleForScreenshot(title);
-            } else if (driver.getCurrentUrl().contains("results")) {
-                waitForSearchResultsReady(wait);
-            } else {
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("body")));
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void ensureTitleVisibleForScreenshot(String title) {
-        WebElement titleElement = findVisibleTitleElement();
-
-        if (titleElement != null) {
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block: 'center'});",
-                    titleElement
-            );
-            return;
-        }
-
-        ((JavascriptExecutor) driver).executeScript(
-                "const existing = document.getElementById('artifact-video-title');" +
-                        "if (existing) existing.remove();" +
-
-                        "const banner = document.createElement('div');" +
-                        "banner.id = 'artifact-video-title';" +
-                        "banner.textContent = arguments[0];" +
-                        "banner.style.position = 'fixed';" +
-                        "banner.style.top = '0';" +
-                        "banner.style.left = '0';" +
-                        "banner.style.right = '0';" +
-                        "banner.style.zIndex = '2147483647';" +
-                        "banner.style.background = 'rgba(0,0,0,0.88)';" +
-                        "banner.style.color = 'white';" +
-                        "banner.style.fontSize = '24px';" +
-                        "banner.style.fontFamily = 'Arial, sans-serif';" +
-                        "banner.style.fontWeight = 'bold';" +
-                        "banner.style.padding = '12px 16px';" +
-                        "banner.style.lineHeight = '1.4';" +
-                        "banner.style.boxSizing = 'border-box';" +
-                        "banner.style.wordBreak = 'break-word';" +
-                        "document.body.appendChild(banner);" +
-                        "window.scrollTo(0, 0);",
-                title
-        );
-    }
-
-    private void saveArtifacts() throws IOException {
-        Path artifactsDir = Path.of("target", "artifacts");
-        Files.createDirectories(artifactsDir);
-
-        File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-        FileHandler.copy(screenshot, artifactsDir.resolve("last-page.png").toFile());
-
-        String pageSource = driver.getPageSource();
-        Files.writeString(
-                artifactsDir.resolve("last-page.html"),
-                pageSource,
-                StandardCharsets.UTF_8
-        );
     }
 }

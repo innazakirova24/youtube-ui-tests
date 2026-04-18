@@ -1,0 +1,48 @@
+name: UI Tests (Playwright - Headless)
+
+on:
+  push:
+    branches: [ main, master, playwright-migration ]
+  pull_request:
+    branches: [ main, master, playwright-migration ]
+  workflow_dispatch:   # можно запускать вручную
+
+jobs:
+  youtube-playwright-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x ./mvnw
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Install Playwright dependencies
+        run: ./mvnw exec:java -e -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps chromium"
+
+      - name: Run Playwright tests in headless mode
+        run: ./mvnw -B clean test -Dtest=YouTubeSmokeTest -Dheadless=true
+
+      - name: Upload screenshots (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: target/artifacts/
+          retention-days: 7
